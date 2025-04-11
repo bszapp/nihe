@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary: #6c5ce7;
+            --secondary: #a8a5e6;
+            --background: #f8f9fa;
+            --card-bg: #ffffff;
+            --text: #2d3436;
+            --border-radius: 16px;
+        }
+
+        [data-theme="dark"] {
+            --primary: #a78bfa;
+            --background: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --text: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            margin: 0;
+            min-height: 100vh;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+
+        div,
+        button {
+            user-select: none;
+        }
+
+        .container {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            width: 100%;
+            max-width: 700px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        h1 {
+            color: var(--primary);
+            margin: 0 0 1.5rem;
+            font-weight: 700;
+            font-size: 2rem;
+            text-align: center;
+        }
+
+        .point-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .point-item {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(-50%);
+                opacity: 0;
+            }
+        }
+
+        input {
+            padding: 0.8rem;
+            border: 2px solid var(--secondary);
+            border-radius: 8px;
+            font-size: 16px;
+            background: var(--card-bg);
+            color: var(--text);
+            transition: all 0.2s;
+            width: 100px;
+            flex-shrink: 0;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+        }
+
+        button {
+            padding: 0.6rem 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .remove-btn {
+            background: #ff7675;
+            padding: 0.6rem;
+        }
+
+        #result {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: rgba(108, 92, 231, 0.05);
+            border-radius: 12px;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.5rem;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+        }
+
+        #tip {
+            padding: 2em;
+            opacity: 0.8;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 1.5rem;
+                box-shadow: none;
+                background: transparent;
+            }
+
+            body {
+                background: var(--card-bg);
+            }
+
+            .point-item {
+                gap: 6px;
+            }
+
+            input {
+                width: 35%;
+                padding: 0.7rem;
+            }
+
+            button {
+                padding: 0.5rem 0.8rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
+        <h1>智能找规律</h1>
+        <div class="point-list" id="pointList"></div>
+        <button onclick="addPoint()" style="width: 100%">＋ 添加数据点</button>
+        <div id="result"></div>
+        <div id="tip">
+            使用方法：添加控制点数据（允许整数或a/b格式分数），自动拟合多项式
+        </div>
+    </div>
+
+    <script>
+        function gcd(a, b) {
+            a = a < 0n ? -a : a;
+            b = b < 0n ? -b : b;
+            while (b !== 0n) {
+                [a, b] = [b, a % b];
+            }
+            return a;
+        }
+
+        class Fraction {
+            constructor(numerator, denominator = 1n) {
+                if (denominator === 0n) throw new Error(`分母不能为0（${numerator}/${denominator}）`);
+                const g = gcd(numerator, denominator);
+                numerator /= g;
+                denominator /= g;
+                if (denominator < 0n) {
+                    numerator = -numerator;
+                    denominator = -denominator;
+                }
+                this.numerator = numerator;
+                this.denominator = denominator;
+            }
+
+            add(other) {
+                return new Fraction(
+                    this.numerator * other.denominator + other.numerator * this.denominator,
+                    this.denominator * other.denominator
+                );
+            }
+
+            sub(other) {
+                return new Fraction(
+                    this.numerator * other.denominator - other.numerator * this.denominator,
+                    this.denominator * other.denominator
+                );
+            }
+
+            mul(other) {
+                return new Fraction(
+                    this.numerator * other.numerator,
+                    this.denominator * other.denominator
+                );
+            }
+
+            div(other) {
+                return new Fraction(
+                    this.numerator * other.denominator,
+                    this.denominator * other.numerator
+                );
+            }
+
+            negate() {
+                return new Fraction(-this.numerator, this.denominator);
+            }
+
+            isZero() {
+                return this.numerator === 0n;
+            }
+
+            equals(other) {
+                return this.numerator === other.numerator && this.denominator === other.denominator;
+            }
+
+            toString() {
+                if (this.denominator === 1n) return this.numerator.toString();
+                return `${this.numerator}/${this.denominator}`;
+            }
+        }
+
+        function interpolate(x, y) {
+            const n = x.length;
+
+            // 解析输入为分数
+            const parseFraction = (num) => {
+                if (typeof num === 'string' && num.includes('/')) {
+                    const [numeratorStr, denominatorStr] = num.split('/');
+                    const numerator = BigInt(numeratorStr);
+                    const denominator = BigInt(denominatorStr);
+                    return new Fraction(numerator, denominator);
+                } else {
+                    const value = BigInt(num);
+                    return new Fraction(value);
+                }
+            };
+
+            const xFrac = x.map(parseFraction);
+            const yFrac = y.map(parseFraction);
+
+            // 构建范德蒙增广矩阵
+            const matrix = [];
+            for (let i = 0; i < n; i++) {
+                const row = [];
+                let xPower = new Fraction(1n);
+                for (let j = 0; j < n; j++) {
+                    row.push(xPower);
+                    xPower = xPower.mul(xFrac[i]);
+                }
+                row.push(yFrac[i]);
+                matrix.push(row);
+            }
+
+            // 高斯消元
+            for (let k = 0; k < n; k++) {
+                let pivot = k;
+                while (pivot < n && matrix[pivot][k].isZero()) pivot++;
+                if (pivot >= n) throw new Error("x数值重复");
+                [matrix[k], matrix[pivot]] = [matrix[pivot], matrix[k]];
+
+                const pivotVal = matrix[k][k];
+                for (let j = k; j <= n; j++) {
+                    matrix[k][j] = matrix[k][j].div(pivotVal);
+                }
+
+                for (let i = 0; i < n; i++) {
+                    if (i !== k && !matrix[i][k].isZero()) {
+                        const factor = matrix[i][k];
+                        for (let j = k; j <= n; j++) {
+                            matrix[i][j] = matrix[i][j].sub(factor.mul(matrix[k][j]));
+                        }
+                    }
+                }
+            }
+
+            const coeffs = matrix.map(row => row[n]);
+
+            // 构建JS多项式字符串
+            const jsTerms = [];
+            for (let i = coeffs.length - 1; i >= 0; i--) {
+                const coeff = coeffs[i];
+                if (coeff.isZero()) continue;
+
+                let term;
+                if (jsTerms.length === 0) {
+                    term = coeff.toString();
+                } else {
+                    const sign = coeff.numerator < 0 ? '-' : '+';
+                    const absCoeff = coeff.numerator < 0 ? coeff.negate() : coeff;
+                    term = `${sign} ${absCoeff.toString()}`;
+                }
+
+                const power = i;
+                if (power > 0) {
+                    term += `x`;
+                    if (power > 1) term += `^${power}`;
+                }
+
+                jsTerms.push(term);
+            }
+
+            const jsExpr = jsTerms.join(' ');
+            return jsExpr; // 仅返回第一种格式
+        }
+    </script>
+    <script>
+        function toggleTheme() {
+            const isDark = document.body.dataset.theme === 'dark';
+            document.body.dataset.theme = isDark ? '' : 'dark';
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+            calculate();
+        }
+
+        document.body.dataset.theme = localStorage.getItem('theme') || 'light';
+
+        function createPointItem(xValue) {
+            const item = document.createElement('div');
+            item.className = 'point-item';
+            item.innerHTML = `
+                <input type="text" class="x-input" placeholder="x" value="${xValue}" 
+                    oninput="updateXValues(); calculate()"
+                    onkeydown="handleEnter(event, this)">
+                <input type="text" class="y-input" placeholder="y" 
+                    oninput="calculate()" 
+                    onkeydown="handleEnter(event, this)">
+                <button class="remove-btn" onclick="removePoint(this)">×</button>
+            `;
+            return item;
+        }
+
+        function handleEnter(event, input) {
+            if (event.key === 'Enter') {
+                const currentItem = input.closest('.point-item');
+                const newItem = createPointItem('');
+                currentItem.after(newItem);
+                newItem.querySelector('.y-input').focus();
+                updateXValues();
+                calculate();
+            }
+        }
+
+        function addPoint() {
+            const pointList = document.getElementById('pointList');
+            const lastX = [...document.querySelectorAll('.x-input')].pop()?.value || '0';
+            const newItem = createPointItem(String(Number(lastX) + 1));
+            pointList.appendChild(newItem);
+            newItem.style.animation = 'slideIn 0.2s ease';
+            newItem.querySelector('.y-input').focus();
+            calculate();
+        }
+
+        function removePoint(btn) {
+            const item = btn.closest('.point-item');
+            item.style.animation = 'slideOut 0.3s ease';
+            item.addEventListener('animationend', () => {
+                item.remove();
+                calculate();
+            }, { once: true });
+        }
+
+        function updateXValues() {
+            let lastValidX = 0;
+            document.querySelectorAll('.x-input').forEach(input => {
+                const value = parseFloat(input.value) || lastValidX + 1;
+            });
+        }
+
+        function calculate() {
+            try {
+                const xList = [...document.querySelectorAll('.x-input')].map(i => i.value);
+                const yList = [...document.querySelectorAll('.y-input')].map(i => i.value || '0');
+                const poly = interpolate(xList, yList);
+                const exampleText = xList.map((x, i) =>
+                    `f(${x})=${yList[i]}`).join('，');
+
+                const text_f = xList.map((x, i) => `f(${x})=${yList[i]}`).join('，');
+                document.getElementById('result').innerHTML = `
+                    <div style="font-size:20px; color:var(--primary); margin-bottom:1rem; user-select:text;">
+                        <b>y = ${poly}</b>
+                    </div>
+                    <div style="color:var(--text); opacity:0.9; user-select:text;">注意到f(x)=${poly}，其中${exampleText}，故填${yList.slice(-1)[0]}</div>
+                    <div style="margin-top:1rem; font-size:0.9em; color:var(--secondary)">
+                        共使用 ${xList.length} 个数据点进行拟合
+                    </div>
+                `;
+            } catch (e) {
+                document.getElementById('result').innerHTML = `<div style="color:#ff7675">${e.message}</div>`;
+            }
+        }
+
+        addPoint();
+        addPoint();
+    </script>
+</body>
+
+</html>
